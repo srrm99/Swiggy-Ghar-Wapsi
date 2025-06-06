@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hindi Voice Conversation</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Hindi Voice Conversation Bot</h1>
+        <p>Press the button to start the conversation. The bot will speak first.</p>
+        <div class="controls">
+            <button id="start-btn">Start Conversation</button>
+            <button id="end-btn" style="display: none;">End & Summarize</button>
+        </div>
+        <div id="status">Waiting to start...</div>
+        <div class="conversation-log" id="conversation-log">
+            <!-- Transcripts will be appended here -->
+        </div>
+        <div class="summary-container" id="summary-container" style="display: none;">
+            <h2>Conversation Summary</h2>
+            <pre id="summary-output"></pre>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='main.js') }}"></script>
+</body>
+</html> 

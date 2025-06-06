@@ -24,6 +24,7 @@ This project is a Flask-based web application that seems to be related to Swiggy
 4.  **Create a `.env` file and add your API keys:**
     ```
     OPENROUTER_API_KEY="your_openrouter_api_key"
+    SARVAM_API_KEY="your_sarvam_api_key"
     ```
 
 ## Running the application

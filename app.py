@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, jsonify
 from dotenv import load_dotenv
 import os
 import json
+import csv
 
 from asr_module import speech_to_text
 from llm_module import get_llm_response, get_json_summary
@@ -129,6 +130,32 @@ def summarize():
     except Exception as e:
         print(f"Error in /summarize: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
+
+def load_insights_from_csv(filename="delhi_insights.csv"):
+    """Reads the generated CSV and returns a list of insight dictionaries."""
+    insights = []
+    print(f"Dashboard: Attempting to load insights from '{filename}'...")
+    try:
+        with open(filename, 'r', newline='', encoding='utf-8') as csvfile:
+            reader = csv.DictReader(csvfile)
+            for row in reader:
+                try:
+                    insight_obj = json.loads(row['json_summary'])
+                    insights.append(insight_obj)
+                except json.JSONDecodeError as e:
+                    print(f"Dashboard: Skipping row due to JSON decode error: {e}. Row: {row}")
+            print(f"Dashboard: Successfully loaded {len(insights)} insights from CSV.")
+    except FileNotFoundError:
+        print(f"Dashboard ERROR: The file '{filename}' was not found. The dashboard will be empty.")
+    except Exception as e:
+        print(f"Dashboard ERROR: An unexpected error occurred while reading or parsing '{filename}': {e}")
+    return insights
+
+@app.route('/dashboard')
+def dashboard():
+    """Serves the city lead dashboard page with data."""
+    insights_data = load_insights_from_csv()
+    return render_template('dashboard.html', insights_data=json.dumps(insights_data))
 
 if __name__ == '__main__':
     # Check for the new OpenRouter API key

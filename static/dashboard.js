@@ -1,6 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
     try {
-        // Use the global window.insightsData variable
         if (!window.insightsData || window.insightsData.length === 0) {
             console.error("Dashboard cannot be displayed: No insights data found.");
             const container = document.querySelector('.container');
@@ -12,58 +11,94 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const insights = window.insightsData;
 
-        // 1. Process data for KPIs, charts, and cards
+        // --- 1. Prepare Aggregated Data ---
         const reasonCounts = {};
         const returnInterestCounts = {};
         const mentionedIssuesCounts = {};
-        let positiveReturnInterest = 0;
+        const toneCounts = {};
+
+        let yesMaybeReturnCount = 0;
+        let noReturnCount = 0;
 
         insights.forEach(insight => {
+            // Reason for Inactivity
             const reason = insight.reason_for_inactivity || 'Unknown';
             reasonCounts[reason] = (reasonCounts[reason] || 0) + 1;
 
+            // Interest in Returning
             const interest = insight.is_interested_in_returning || 'Unknown';
             returnInterestCounts[interest] = (returnInterestCounts[interest] || 0) + 1;
-            if (interest === 'Yes') positiveReturnInterest++;
-            
-            if (insight.mentioned_issues) {
+
+            if (interest === 'Yes' || interest === 'Maybe') {
+                yesMaybeReturnCount++;
+            }
+            if (interest === 'No') {
+                noReturnCount++;
+            }
+
+            // Mentioned Issues
+            if (insight.mentioned_issues && typeof insight.mentioned_issues === 'object') {
                 Object.keys(insight.mentioned_issues).forEach(issue => {
-                    mentionedIssuesCounts[issue] = (mentionedIssuesCounts[issue] || 0) + 1;
+                    if(issue !== "None") { // Exclude "None" from issues
+                        mentionedIssuesCounts[issue] = (mentionedIssuesCounts[issue] || 0) + 1;
+                    }
                 });
             }
+
+
+            // Tone / Sentiment
+            const tone = insight.de_sentiment || 'Unknown';
+            toneCounts[tone] = (toneCounts[tone] || 0) + 1;
         });
 
-        // 2. Populate KPIs
-        document.getElementById('total-contacts').textContent = insights.length;
-        const returnInterestPercentage = ((positiveReturnInterest / insights.length) * 100).toFixed(0);
-        document.getElementById('return-interest-yes').textContent = `${returnInterestPercentage}%`;
-        const topReason = Object.keys(reasonCounts).reduce((a, b) => reasonCounts[a] > reasonCounts[b] ? a : b, 'N/A');
+        // --- 2. Populate KPI Cards ---
+        const totalInsights = insights.length;
+        document.getElementById('total-des').textContent = totalInsights;
+
+        const willingToReturnPerc = totalInsights > 0 ? ((yesMaybeReturnCount / totalInsights) * 100).toFixed(0) : 0;
+        document.getElementById('willing-return-perc').textContent = `${willingToReturnPerc}%`;
+
+        const notWillingToReturnPerc = totalInsights > 0 ? ((noReturnCount / totalInsights) * 100).toFixed(0) : 0;
+        document.getElementById('not-willing-return-perc').textContent = `${notWillingToReturnPerc}%`;
+
+        const topReason = Object.keys(reasonCounts).length > 0 ? Object.keys(reasonCounts).reduce((a, b) => reasonCounts[a] > reasonCounts[b] ? a : b) : 'N/A';
         document.getElementById('top-reason').textContent = topReason;
 
-        // 3. Render Charts
-        renderBarChart('reasonsChart', 'Reason for Inactivity', reasonCounts);
-        renderPieChart('returnInterestChart', 'Interest in Returning', returnInterestCounts);
-        renderBarChart('issuesChart', 'Top Mentioned Issues', mentionedIssuesCounts, 'y'); // Horizontal bar chart
+        const mostCommonIssue = Object.keys(mentionedIssuesCounts).length > 0 ? Object.keys(mentionedIssuesCounts).reduce((a, b) => mentionedIssuesCounts[a] > mentionedIssuesCounts[b] ? a : b) : 'N/A';
+        document.getElementById('top-issue').textContent = mostCommonIssue;
 
-        // 4. Populate Insight Cards
-        const insightsGrid = document.getElementById('insights-grid');
-        insightsGrid.innerHTML = ''; // Clear placeholders
-        insights.forEach(insight => {
-            const card = document.createElement('div');
-            card.className = 'insight-card';
 
-            const sentiment = insight.de_sentiment || 'Unknown';
-            const issues = Object.keys(insight.mentioned_issues || {}).map(k => k.replace(/_/g, ' ')).join(', ') || 'None';
+        // --- 3. Render Charts ---
 
-            card.innerHTML = `
-                <p><strong>Summary:</strong> ${insight.conversation_summary || 'N/A'}</p>
-                <p><strong>Key Takeaway:</strong> ${(insight.key_takeaways || []).join('; ')}</p>
-                <p><strong>Mentioned Issues:</strong> ${issues}</p>
-                <div>
-                    <span class="tag sentiment-${sentiment}">${sentiment}</span>
-                </div>
+        // Sort reasons by count descending
+        const sortedReasons = Object.entries(reasonCounts).sort(([,a],[,b]) => b-a);
+        const sortedReasonLabels = sortedReasons.map(el => el[0]);
+        const sortedReasonData = sortedReasons.map(el => el[1]);
+
+        renderBarChart('reasonsChart', 'Reasons for Inactivity', { labels: sortedReasonLabels, data: sortedReasonData });
+        renderBarChart('returnInterestChart', 'Interest in Returning', { labels: Object.keys(returnInterestCounts), data: Object.values(returnInterestCounts) });
+        renderBarChart('issuesChart', 'Mentioned Issues', { labels: Object.keys(mentionedIssuesCounts), data: Object.values(mentionedIssuesCounts) }, 'y');
+        renderPieChart('toneChart', 'Feedback Tone', { labels: Object.keys(toneCounts), data: Object.values(toneCounts) });
+
+        // --- 4. Render Full Drill-Down Table ---
+        const tableBody = document.getElementById('details-table-body');
+        tableBody.innerHTML = ''; // Clear previous content
+        insights.forEach((insight, index) => {
+            const row = document.createElement('tr');
+            
+            const issues = insight.mentioned_issues && typeof insight.mentioned_issues === 'object' 
+                ? Object.keys(insight.mentioned_issues).map(k => k.replace(/_/g, ' ')).join(', ') || 'None'
+                : 'None';
+
+            row.innerHTML = `
+                <td>${index + 1}</td>
+                <td>${insight.reason_for_inactivity || 'N/A'}</td>
+                <td>${insight.is_interested_in_returning || 'N/A'}</td>
+                <td>${(insight.key_takeaways || ['N/A']).join('; ')}</td>
+                <td>${issues}</td>
+                <td>${insight.de_sentiment || 'N/A'}</td>
             `;
-            insightsGrid.appendChild(card);
+            tableBody.appendChild(row);
         });
 
     } catch (error) {
@@ -75,28 +110,65 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-function renderBarChart(canvasId, label, data, axis = 'x') {
+function renderBarChart(canvasId, label, chartData, axis = 'x') {
     const ctx = document.getElementById(canvasId).getContext('2d');
+    if (!ctx) return;
     new Chart(ctx, {
         type: 'bar',
         data: {
-            labels: Object.keys(data),
-            datasets: [{ label: '# of Mentions', data: Object.values(data), backgroundColor: 'rgba(54, 162, 235, 0.6)' }]
+            labels: chartData.labels,
+            datasets: [{
+                label: '# of DEs',
+                data: chartData.data,
+                backgroundColor: 'rgba(54, 162, 235, 0.6)'
+            }]
         },
-        options: { indexAxis: axis, scales: { [axis]: { beginAtZero: true } } }
+        options: {
+            indexAxis: axis,
+            scales: {
+                [axis]: {
+                    beginAtZero: true
+                }
+            },
+            plugins: {
+                legend: {
+                    display: false
+                }
+            }
+        }
     });
 }
 
-function renderPieChart(canvasId, label, data) {
+function renderPieChart(canvasId, label, chartData) {
     const ctx = document.getElementById(canvasId).getContext('2d');
+    if (!ctx) return;
     new Chart(ctx, {
         type: 'pie',
         data: {
-            labels: Object.keys(data),
+            labels: chartData.labels,
             datasets: [{
-                data: Object.values(data),
-                backgroundColor: ['rgba(75, 192, 192, 0.6)', 'rgba(255, 99, 132, 0.6)', 'rgba(255, 206, 86, 0.6)']
+                data: chartData.data,
+                backgroundColor: [
+                    'rgba(75, 192, 192, 0.6)', // Positive
+                    'rgba(255, 206, 86, 0.6)', // Neutral
+                    'rgba(255, 99, 132, 0.6)', // Negative
+                    'rgba(153, 102, 255, 0.6)',
+                    'rgba(255, 159, 64, 0.6)'
+                ]
             }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'top',
+                },
+                title: {
+                    display: true,
+                    text: label
+                }
+            }
         }
     });
 } 

@@ -23,7 +23,7 @@ This project is a Flask-based web application that seems to be related to Swiggy
 
 4.  **Create a `.env` file and add your API keys:**
     ```
-    OPENAI_API_KEY="your_openai_api_key"
+    OPENROUTER_API_KEY="your_openrouter_api_key"
     ```
 
 ## Running the application
